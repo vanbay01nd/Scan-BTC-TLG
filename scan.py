@@ -18,7 +18,7 @@ TELEGRAM_CHAT_ID = '7104020294'
 
 # Initialize Telegram bot
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
-updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
+updater = Updater(bot_token=TELEGRAM_BOT_TOKEN, use_context=True)  # Change 'token' to 'bot_token'
 
 found_wallets = []
 
