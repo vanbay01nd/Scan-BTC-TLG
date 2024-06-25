@@ -14,8 +14,8 @@ def title():
     f = Figlet(font='standard')
     print(Fore.LIGHTCYAN_EX + f.renderText("Cryptonix") + Fore.RESET)
 
-def get_clear():
-    os.system('clear')
+def clear_screen():
+    os.system('clear' if os.name == 'posix' else 'cls')
 
 def eth_balance(addr: str) -> float:
     url = f"https://ethereum.atomicwallet.io/api/v2/address/{addr}"
@@ -27,7 +27,7 @@ def eth_balance(addr: str) -> float:
         print(f"Error fetching Ethereum balance: {e}")
         return 0.0
 
-def get_balance(addr: str) -> float:
+def btc_balance(addr: str) -> float:
     url = f"https://bitcoin.atomicwallet.io/api/v2/address/{addr}"
     try:
         req = requests.get(url).json()
@@ -52,70 +52,68 @@ def check_wallet(private_key):
         "P2SH": hd_btc.p2sh_address()
     }
 
-    balances = {}
+    btc_balances = {}
     for addr_type, addr in btc_addrs.items():
-        balances[addr_type] = get_balance(addr)
+        btc_balances[addr_type] = btc_balance(addr)
     eth_balance_value = eth_balance(eth_addr)
-    balances['ETH'] = eth_balance_value
 
-    return private_key, btc_addrs, eth_addr, balances
+    return private_key, btc_addrs, eth_addr, btc_balances, eth_balance_value
 
 def main():
-    get_clear()
+    clear_screen()
     title()
-    print(Fore.GREEN, "Starting...", Fore.RESET)
+    print(Fore.GREEN + "Starting..." + Fore.RESET)
     time.sleep(2)
 
-    z = 1
-    ff = 0
+    total_scans = 0
+    found_wallets = 0
 
-    max_workers = os.cpu_count() * 2  # Adjust the multiplier as needed
+    max_workers = os.cpu_count() * 2  # Tăng hiệu suất bằng cách sử dụng nhiều luồng
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []
-        while True:
-            try:
+        try:
+            while True:
                 private_key = "".join(random.choice("0123456789abcdef") for _ in range(64))
                 futures.append(executor.submit(check_wallet, private_key))
 
                 for future in as_completed(futures):
-                    private_key, btc_addrs, eth_addr, balances = future.result()
-
-                    get_clear()
+                    clear_screen()
                     title()
+                    total_scans += 1
 
-                    print(Fore.YELLOW, "Discord: cr0mbleonthegame", Fore.RESET)
-                    print(f"Scan: {z} Found: {ff}")
+                    private_key, btc_addrs, eth_addr, btc_balances, eth_balance_value = future.result()
+
+                    print(Fore.YELLOW + "Discord: cr0mbleonthegame" + Fore.RESET)
+                    print(f"Scan: {total_scans} Found: {found_wallets}\n")
 
                     for addr_type, addr in btc_addrs.items():
-                        balance = balances.get(addr_type, 0.0)
-                        print(f"{Fore.WHITE}BTC Address ({addr_type}) | BAL: {Fore.MAGENTA}{balance} | {Fore.YELLOW}{addr}")
+                        btc_balance = btc_balances.get(addr_type, 0.0)
+                        print(f"{Fore.WHITE}BTC Address ({addr_type}) | BAL: {Fore.MAGENTA}{btc_balance} | {Fore.YELLOW}{addr}")
 
-                    eth_balance_value = balances.get('ETH', 0.0)
                     print(f"{Fore.WHITE}ETH Address (ETH)    | BAL: {Fore.MAGENTA}{eth_balance_value} | {Fore.YELLOW}{eth_addr}")
                     print(f"{Fore.WHITE}Private Key (HEX)    | {Fore.MAGENTA}{private_key}")
                     print("=" * 70)
 
-                    z += 1
-
-                    if any(balance > 0 for balance in balances.values()):
-                        ff += 1
+                    if any(balance > 0 for balance in btc_balances.values()) or eth_balance_value > 0:
+                        found_wallets += 1
                         with open('found_wallets.txt', 'a') as f:
-                            f.write(f'Scan: {z-1}, Found: {ff}\n')
+                            f.write(f'Scan: {total_scans}, Found: {found_wallets}\n')
                             for addr_type, addr in btc_addrs.items():
-                                balance = balances.get(addr_type, 0.0)
-                                if balance > 0:
-                                    f.write(f'BTC Address ({addr_type}): {addr}\nBalance: {balance}\n')
+                                btc_balance = btc_balances.get(addr_type, 0.0)
+                                if btc_balance > 0:
+                                    f.write(f'BTC Address ({addr_type}): {addr}\nBalance: {btc_balance}\n')
                             if eth_balance_value > 0:
                                 f.write(f'ETH Address: {eth_addr}\nBalance: {eth_balance_value}\n')
                             f.write(f'Private Key: {private_key}\n\n')
 
                     futures = [f for f in futures if not f.done()]
 
-            except Exception as e:
-                print(f"An error occurred: {e}")
-                print("Restarting in 5 seconds...")
-                time.sleep(5)
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            print("Restarting in 5 seconds...")
+            time.sleep(5)
+            main()
 
 if __name__ == "__main__":
     main()
