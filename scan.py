@@ -17,20 +17,20 @@ def title():
 def clear_screen():
     os.system('clear' if os.name == 'posix' else 'cls')
 
-def eth_balance(addr: str) -> float:
+def eth_balance(addr: str, session: requests.Session) -> float:
     url = f"https://ethereum.atomicwallet.io/api/v2/address/{addr}"
     try:
-        req = requests.get(url).json()
+        req = session.get(url).json()
         ret = req['balance']
         return int(ret) / 1e18
     except (KeyError, requests.RequestException) as e:
         print(f"Error fetching Ethereum balance: {e}")
         return 0.0
 
-def btc_balance(addr: str) -> float:
+def btc_balance(addr: str, session: requests.Session) -> float:
     url = f"https://bitcoin.atomicwallet.io/api/v2/address/{addr}"
     try:
-        req = requests.get(url).json()
+        req = session.get(url).json()
         ret = req['balance']
         return int(ret) / 1e8
     except (KeyError, requests.RequestException) as e:
@@ -38,6 +38,7 @@ def btc_balance(addr: str) -> float:
         return 0.0
 
 def check_wallet(private_key):
+    session = requests.Session()
     hd_btc = HDWallet(symbol=BTC)
     hd_eth = HDWallet(symbol=ETH)
     hd_btc.from_private_key(private_key)
@@ -54,8 +55,8 @@ def check_wallet(private_key):
 
     btc_balances = {}
     for addr_type, addr in btc_addrs.items():
-        btc_balances[addr_type] = btc_balance(addr)
-    eth_balance_value = eth_balance(eth_addr)
+        btc_balances[addr_type] = btc_balance(addr, session)
+    eth_balance_value = eth_balance(eth_addr, session)
 
     return private_key, btc_addrs, eth_addr, btc_balances, eth_balance_value
 
@@ -68,7 +69,7 @@ def main():
     total_scans = 0
     found_wallets = 0
 
-    max_workers = os.cpu_count() * 2  # Tăng hiệu suất bằng cách sử dụng nhiều luồng
+    max_workers = 7  # Chỉ định 7 luồng
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []
